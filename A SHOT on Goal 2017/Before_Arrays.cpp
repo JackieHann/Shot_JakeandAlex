@@ -194,40 +194,34 @@ bool findSHOTonGoalSpeedAndAngle(float* speed, float* angle, float x)
 
 
 	float nextAngle(minAngle);	// Start with shallowest angle...
-	bool foundCombo(false);		// Found combination of speed and angle that gets ball over bar?
+	//bool foundCombo(false);		// Found combination of speed and angle that gets ball over bar?
 
 	//New variables
-	const float xSquaredGrav = (x * x * -g);
-	float successHeight = crossBarHeight + margin;
+	//const float xSquaredGrav = (x * x * -g);
+	//float eqInv2CosAngleSquared = 0.552786405f;
+	const float xSquaredGravInv2CosAngleSquared = (x * x * -g * 0.552786405f);
+	const float successHeight = crossBarHeight + margin;	//stores height to 
 
-	float eqInv2CosAngleSquared = 0.552786405f;		//Initial eq value (rads for angle)
-	float eqInc = 0.0032f;							//What we increment eq by every iteration
-	const float eqIncInc = 0.000123599f;			//What we incremenet the increment by each iteration
+	//float eqInv2CosAngleSquared = 0.552786405f;		//Initial eq value (rads for angle)
+	//float eqInc = 0.0032f;							//What we increment eq by every iteration
+	//const float eqIncInc = 0.000123599f;				//What we incremenet the increment by each iteration
 
-	float eqTanAngle = 0.324919696f;				//Initial tan value (rads)
-	float eqInc2 = 0.0097f;							//What we increment tan by every iteration
-	const float eqIncInc2 = 0.0000661935482162368f;	//What we incremenet the increment by each iteration
-
+	float eqTanAngle = 0.324919696f;					//Initial tan value (rads)
+	float eqTanInc= 0.0097f;							//What we increment tan by every iteration
+	//const float eqIncInc2 = 0.0000661935482162368f;	//What we incremenet the increment by each iteration
 
 	do
 	{
 		//float AngleRads = (nextAngle * (Pi / 180.0F));			// Need radians for cos and tan functions
-		float nextSpeed = minSpeed;	
-		float xTanAngle = eqTanAngle * x;// reset minimum speed 
+		float nextSpeed = minSpeed;			//Resets speed for next iteration
+		const float xTanAngle = eqTanAngle * x;	//Figure out tan angle before going through speeds (constant) 
 
 		do
 		{
 			float invSpeedSquared = (1.0f / (nextSpeed*nextSpeed));
-			// Figure out height of ball at goal post distance (x), using classic trajectory equation...
-			//
-			//			height =  (-g * x^2)/(2 * cos(angle)^2 * speed^2) + (x * tan(angle))
-			//
-			// If this is > cross bar height (plus any margin allowed) then result! 
-			// Note: height could become negative if ball hits ground short of posts (and theoretically keeps going underground!).
-			// Note: Max horizontal distance can be calculated from = (speed^2) * sin(2*angle)/g
+			float height = (xSquaredGravInv2CosAngleSquared * invSpeedSquared) + xTanAngle;	//Phew!
 
-			float height = (xSquaredGrav * eqInv2CosAngleSquared * invSpeedSquared) + xTanAngle;	//Phew!
-
+			//cout << (xSquaredGravInv2CosAngleSquared * invSpeedSquared) << endl;
 #ifdef _longTrace  // Echo results to screen as calculations proceed (can be lengthy, be patient! Very patient.)
 			cout << setw(4) << setprecision(4) << "\nHeight found for speed " << nextSpeed << "m/s\t\t= " << height << " m,\t\tkicking at angle " << nextAngle << " degrees";
 #endif //_longTrace
@@ -243,18 +237,16 @@ bool findSHOTonGoalSpeedAndAngle(float* speed, float* angle, float x)
 				return true;			// ... and stop looking.
 			}
 
-		} while (!(foundCombo || nextSpeed > maxSpeed));
+		} while (!(nextSpeed > maxSpeed));
 
-		eqInv2CosAngleSquared += eqInc;
-		eqInc += eqIncInc;
+		//eqInv2CosAngleSquared += eqInc;
+		//eqInc += eqIncInc;
 
-		eqTanAngle += eqInc2;
-		eqInc2 += eqIncInc2;
+		eqTanAngle += eqTanInc;
+		//eqInc2 += eqIncInc2;
 		nextAngle += deltaD;	// no joy, try next angle up (+0.5 degrees).
 
-
-
-	} while (!(foundCombo || nextAngle > maxAngle));				// Think de Morgan's Theory, perhaps.
+	} while (!(nextAngle > maxAngle));				// Think de Morgan's Theory, perhaps.
 
 	return false;
 }
@@ -269,7 +261,14 @@ void generateFlightPath(float speed, float angle)
 
 	float yValue(0.001F);	// ball is sitting on a tee just above the ground begin with, of course!
 	float xValue(0.0F);		// ...and hasn't moved yet.
-	const float AngleRads = (angle * (Pi / 180.0F));	// Need radians for cos and tan functions 
+
+	const float AngleRads = (angle * toRads);	// Need radians for cos and tan functions 
+	const float cosAngleRads = cos(AngleRads);
+	const float cosAngleRadsSquare = cosAngleRads * cosAngleRads;
+	const float speedSquared = (speed * speed);
+	const float twotimesCosandSpeed = 2.0f * cosAngleRadsSquare * speedSquared;
+	const float invAllG = -g / twotimesCosandSpeed;
+	const float tanAngleRads = tan(AngleRads);
 
 	int i(0);
 	for (; i < maxDataPoints && (yValue > 0.0) && (yValue <= maxHeight); ++i)	// If height goes negative or too high, STOP!
@@ -279,7 +278,7 @@ void generateFlightPath(float speed, float angle)
 		xValue += deltaD;			// do for each increment tick across the pitch
 
 		// find the 'y' (height) for each 'x' distance using the angle and speed previously found (same equation as above)
-		yValue = ((-g * xValue * xValue) / (2.0F * cos(AngleRads) * cos(AngleRads) * (speed * speed))) + (xValue * tan(AngleRads));
+		yValue = ((xValue * xValue) * invAllG) + (xValue * tanAngleRads);
 	}
 	// Finished generating required data points, now mark end-of-data with -1.0 (dataEnd)
 	flightPath[i][x] = dataEnd;
